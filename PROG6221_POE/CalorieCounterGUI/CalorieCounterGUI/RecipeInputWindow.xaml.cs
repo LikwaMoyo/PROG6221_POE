@@ -1,120 +1,83 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace CalorieCounterGUI
 {
-    public partial class RecipeInputWindow : Window
+    public partial class RecipeListWindow : Window
     {
-        public Recipe Recipe { get; private set; }
+        public Recipe SelectedRecipe { get; private set; }
+        private List<Recipe> allRecipes;
 
-        public RecipeInputWindow()
+        public RecipeListWindow(List<Recipe> recipes)
         {
             InitializeComponent();
-            Recipe = new Recipe
-            {
-                Ingredients = new List<Ingredient>(),
-                Steps = new List<Step>()
-            };
+            allRecipes = recipes;
+            RecipeListBox.ItemsSource = allRecipes;
+            RecipeListBox.DisplayMemberPath = "Name";
+
+            // Populate food group ComboBox
+            FoodGroupComboBox.ItemsSource = allRecipes
+                .SelectMany(r => r.Ingredients)
+                .Select(i => i.FoodGroup)
+                .Distinct()
+                .OrderBy(fg => fg)
+                .ToList();
         }
 
-        private void AddIngredient_Click(object sender, RoutedEventArgs e)
+        private void SelectRecipe_Click(object sender, RoutedEventArgs e)
         {
-            if (ValidateIngredientInput())
+            if (RecipeListBox.SelectedItem is Recipe recipe)
             {
-                var ingredient = new Ingredient
-                {
-                    Name = IngredientNameTextBox.Text,
-                    Quantity = double.Parse(QuantityTextBox.Text),
-                    Unit = UnitTextBox.Text,
-                    Calories = double.Parse(CaloriesTextBox.Text),
-                    FoodGroup = FoodGroupTextBox.Text
-                };
-                Recipe.Ingredients.Add(ingredient);
-
-                // Clear input fields
-                IngredientNameTextBox.Clear();
-                QuantityTextBox.Clear();
-                UnitTextBox.Clear();
-                CaloriesTextBox.Clear();
-                FoodGroupTextBox.Clear();
-
-                MessageBox.Show("Ingredient added successfully!", "Success");
-            }
-        }
-
-        private void AddStep_Click(object sender, RoutedEventArgs e)
-        {
-            if (!string.IsNullOrWhiteSpace(StepDescriptionTextBox.Text))
-            {
-                var step = new Step { Description = StepDescriptionTextBox.Text };
-                Recipe.Steps.Add(step);
-
-                // Clear input field
-                StepDescriptionTextBox.Clear();
-
-                MessageBox.Show("Step added successfully!", "Success");
-            }
-            else
-            {
-                MessageBox.Show("Please enter a step description.", "Invalid Input");
-            }
-        }
-
-        private void SaveRecipe_Click(object sender, RoutedEventArgs e)
-        {
-            if (ValidateRecipe())
-            {
-                Recipe.Name = RecipeNameTextBox.Text;
-                Recipe.NumIngredients = Recipe.Ingredients.Count;
-                Recipe.NumSteps = Recipe.Steps.Count;
+                SelectedRecipe = recipe;
                 DialogResult = true;
                 Close();
             }
+            else
+            {
+                MessageBox.Show("Please select a recipe.", "Recipe Selection");
+            }
         }
 
-        private bool ValidateIngredientInput()
+        private void ApplyFilter_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(IngredientNameTextBox.Text) ||
-                string.IsNullOrWhiteSpace(QuantityTextBox.Text) ||
-                string.IsNullOrWhiteSpace(UnitTextBox.Text) ||
-                string.IsNullOrWhiteSpace(CaloriesTextBox.Text) ||
-                string.IsNullOrWhiteSpace(FoodGroupTextBox.Text))
-            {
-                MessageBox.Show("Please fill in all ingredient fields.", "Invalid Input");
-                return false;
-            }
-
-            if (!double.TryParse(QuantityTextBox.Text, out _) || !double.TryParse(CaloriesTextBox.Text, out _))
-            {
-                MessageBox.Show("Quantity and Calories must be valid numbers.", "Invalid Input");
-                return false;
-            }
-
-            return true;
+            FilterRecipes();
         }
 
-        private bool ValidateRecipe()
+        private void ClearFilter_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(RecipeNameTextBox.Text))
+            IngredientFilterTextBox.Clear();
+            FoodGroupComboBox.SelectedIndex = -1;
+            MaxCaloriesTextBox.Clear();
+            RecipeListBox.ItemsSource = allRecipes;
+        }
+
+        private void FilterRecipes()
+        {
+            IEnumerable<Recipe> filteredRecipes = allRecipes;
+
+            // Filter by ingredient
+            string ingredientFilter = IngredientFilterTextBox.Text.Trim().ToLower();
+            if (!string.IsNullOrEmpty(ingredientFilter))
             {
-                MessageBox.Show("Please enter a recipe name.", "Invalid Input");
-                return false;
+                filteredRecipes = filteredRecipes.Where(r => r.Ingredients.Any(i => i.Name.ToLower().Contains(ingredientFilter)));
             }
 
-            if (Recipe.Ingredients.Count == 0)
+            // Filter by food group
+            if (FoodGroupComboBox.SelectedItem is string selectedFoodGroup)
             {
-                MessageBox.Show("Please add at least one ingredient.", "Invalid Input");
-                return false;
+                filteredRecipes = filteredRecipes.Where(r => r.Ingredients.Any(i => i.FoodGroup == selectedFoodGroup));
             }
 
-            if (Recipe.Steps.Count == 0)
+            // Filter by maximum calories
+            if (double.TryParse(MaxCaloriesTextBox.Text, out double maxCalories))
             {
-                MessageBox.Show("Please add at least one step.", "Invalid Input");
-                return false;
+                filteredRecipes = filteredRecipes.Where(r => r.CalculateTotalCalories() <= maxCalories);
             }
 
-            return true;
+            RecipeListBox.ItemsSource = filteredRecipes.ToList();
         }
     }
 }
