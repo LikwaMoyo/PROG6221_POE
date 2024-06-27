@@ -1,83 +1,120 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Windows;
-using System.Windows.Controls;
 
 namespace CalorieCounterGUI
 {
-    public partial class RecipeListWindow : Window
+    public partial class RecipeInputWindow : Window
     {
-        public Recipe SelectedRecipe { get; private set; }
-        private List<Recipe> allRecipes;
+        public Recipe Recipe { get; private set; }
 
-        public RecipeListWindow(List<Recipe> recipes)
+        public RecipeInputWindow()
         {
             InitializeComponent();
-            allRecipes = recipes;
-            RecipeListBox.ItemsSource = allRecipes;
-            RecipeListBox.DisplayMemberPath = "Name";
-
-            // Populate food group ComboBox
-            FoodGroupComboBox.ItemsSource = allRecipes
-                .SelectMany(r => r.Ingredients)
-                .Select(i => i.FoodGroup)
-                .Distinct()
-                .OrderBy(fg => fg)
-                .ToList();
+            Recipe = new Recipe
+            {
+                Ingredients = new List<Ingredient>(),
+                Steps = new List<Step>()
+            };
         }
 
-        private void SelectRecipe_Click(object sender, RoutedEventArgs e)
+        private void AddIngredient_Click(object sender, RoutedEventArgs e)
         {
-            if (RecipeListBox.SelectedItem is Recipe recipe)
+            if (ValidateIngredientInput())
             {
-                SelectedRecipe = recipe;
-                DialogResult = true;
-                Close();
+                var ingredient = new Ingredient
+                {
+                    Name = IngredientNameTextBox.Text,
+                    Quantity = double.Parse(QuantityTextBox.Text),
+                    Unit = UnitTextBox.Text,
+                    Calories = double.Parse(CaloriesTextBox.Text),
+                    FoodGroup = FoodGroupTextBox.Text
+                };
+                Recipe.Ingredients.Add(ingredient);
+
+                // Clear input fields
+                IngredientNameTextBox.Clear();
+                QuantityTextBox.Clear();
+                UnitTextBox.Clear();
+                CaloriesTextBox.Clear();
+                FoodGroupTextBox.Clear();
+
+                MessageBox.Show("Ingredient added successfully!", "Success");
+            }
+        }
+
+        private void AddStep_Click(object sender, RoutedEventArgs e)
+        {
+            if (!string.IsNullOrWhiteSpace(StepDescriptionTextBox.Text))
+            {
+                var step = new Step { Description = StepDescriptionTextBox.Text };
+                Recipe.Steps.Add(step);
+
+                // Clear input field
+                StepDescriptionTextBox.Clear();
+
+                MessageBox.Show("Step added successfully!", "Success");
             }
             else
             {
-                MessageBox.Show("Please select a recipe.", "Recipe Selection");
+                MessageBox.Show("Please enter a step description.", "Invalid Input");
             }
         }
 
-        private void ApplyFilter_Click(object sender, RoutedEventArgs e)
+        private void SaveRecipe_Click(object sender, RoutedEventArgs e)
         {
-            FilterRecipes();
+            if (ValidateRecipe())
+            {
+                Recipe.Name = RecipeNameTextBox.Text;
+                Recipe.NumIngredients = Recipe.Ingredients.Count;
+                Recipe.NumSteps = Recipe.Steps.Count;
+                DialogResult = true;
+                Close();
+            }
         }
 
-        private void ClearFilter_Click(object sender, RoutedEventArgs e)
+        private bool ValidateIngredientInput()
         {
-            IngredientFilterTextBox.Clear();
-            FoodGroupComboBox.SelectedIndex = -1;
-            MaxCaloriesTextBox.Clear();
-            RecipeListBox.ItemsSource = allRecipes;
+            if (string.IsNullOrWhiteSpace(IngredientNameTextBox.Text) ||
+                string.IsNullOrWhiteSpace(QuantityTextBox.Text) ||
+                string.IsNullOrWhiteSpace(UnitTextBox.Text) ||
+                string.IsNullOrWhiteSpace(CaloriesTextBox.Text) ||
+                string.IsNullOrWhiteSpace(FoodGroupTextBox.Text))
+            {
+                MessageBox.Show("Please fill in all ingredient fields.", "Invalid Input");
+                return false;
+            }
+
+            if (!double.TryParse(QuantityTextBox.Text, out _) || !double.TryParse(CaloriesTextBox.Text, out _))
+            {
+                MessageBox.Show("Quantity and Calories must be valid numbers.", "Invalid Input");
+                return false;
+            }
+
+            return true;
         }
 
-        private void FilterRecipes()
+        private bool ValidateRecipe()
         {
-            IEnumerable<Recipe> filteredRecipes = allRecipes;
-
-            // Filter by ingredient
-            string ingredientFilter = IngredientFilterTextBox.Text.Trim().ToLower();
-            if (!string.IsNullOrEmpty(ingredientFilter))
+            if (string.IsNullOrWhiteSpace(RecipeNameTextBox.Text))
             {
-                filteredRecipes = filteredRecipes.Where(r => r.Ingredients.Any(i => i.Name.ToLower().Contains(ingredientFilter)));
+                MessageBox.Show("Please enter a recipe name.", "Invalid Input");
+                return false;
             }
 
-            // Filter by food group
-            if (FoodGroupComboBox.SelectedItem is string selectedFoodGroup)
+            if (Recipe.Ingredients.Count == 0)
             {
-                filteredRecipes = filteredRecipes.Where(r => r.Ingredients.Any(i => i.FoodGroup == selectedFoodGroup));
+                MessageBox.Show("Please add at least one ingredient.", "Invalid Input");
+                return false;
             }
 
-            // Filter by maximum calories
-            if (double.TryParse(MaxCaloriesTextBox.Text, out double maxCalories))
+            if (Recipe.Steps.Count == 0)
             {
-                filteredRecipes = filteredRecipes.Where(r => r.CalculateTotalCalories() <= maxCalories);
+                MessageBox.Show("Please add at least one step.", "Invalid Input");
+                return false;
             }
 
-            RecipeListBox.ItemsSource = filteredRecipes.ToList();
+            return true;
         }
     }
 }
